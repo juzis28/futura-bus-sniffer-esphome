@@ -56,7 +56,12 @@ ESP32 WROOM32                 Waveshare TTL TO RS485 (B)            Futura RS-48
 
 3V3           ──────────────> VCC
 GND           ──────────────> GND
+<<<<<<< HEAD
 GPIO32 (RX)   <────────────── TXD
+=======
+GPIO16 (RX)   <────────────── TXD (use another pin, if this does not work, e.g. GPIO32, but then edit it in code as well)
+GPIO17 (TX)    DO NOT CONNECT
+>>>>>>> 293e4b500dec4a6c6a48a56828fdf87869124fbd
                               RXD   DO NOT CONNECT
 
                               A+  ──────────────────────────────────> A
