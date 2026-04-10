@@ -71,7 +71,7 @@ web_server:
 
 # ── RS485 UART ──────────────────────────────────────────────────────────────
 # Wiring (RX only — passive sniffer):
-#   ESP32 GPIO32 (RX2) ←── Waveshare TXD
+#   ESP32 GPIO32 ←── Waveshare TXD
 #   ESP32 3V3          ──→ Waveshare VCC
 #   ESP32 GND          ──→ Waveshare GND
 #   Waveshare A+       ──→ Futura RS485 A

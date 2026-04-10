@@ -56,8 +56,7 @@ ESP32 WROOM32                 Waveshare TTL TO RS485 (B)            Futura RS-48
 
 3V3           ──────────────> VCC
 GND           ──────────────> GND
-GPIO16 (RX)   <────────────── TXD
-GPIO17 (TX)    DO NOT CONNECT
+GPIO32 (RX)   <────────────── TXD
                               RXD   DO NOT CONNECT
 
                               A+  ──────────────────────────────────> A
@@ -69,18 +68,20 @@ GPIO17 (TX)    DO NOT CONNECT
 
 ### Important rules
 
-- ESP32 **TX pin must not be connected** — this is a passive sniffer, the ESP32 never transmits.
+- This is a **passive sniffer** — the ESP32 never transmits. Only the RX pin is used.
 - Waveshare **RXD must not be connected** — the module should not receive data from the ESP32.
 - Termination **120R = OFF** — the sniffer is connected in parallel to the existing bus.
 - The Waveshare TTL side is powered from **3.3 V** (ESP32 3V3 pin), **not** 5 V.
-- You can use a different GPIO pin instead of GPIO16 — just change `rx_pin` in the YAML configuration.
+- The default pin is **GPIO32** — safe on all ESP32 variants including WROVER. Change `rx_pin` in the YAML if needed.
 
 ### Waveshare module → Futura
 
-Connect the RS485 side (bottom screw terminals) to the Futura RS485 terminals:
+The Futura unit has **two RS485 ports**. One connects to the peripheral bus (VarioBreeze dampers, wall panels, ALFA panel), the other is typically unused or reserved.
 
-- `A+` → Futura `A`
-- `B-` → Futura `B`
+**Connect the sniffer in parallel to the peripheral bus** — the same RS485 port where the dampers and wall panels are already connected. The sniffer taps into the existing bus passively.
+
+- `A+` → Futura peripheral bus `A`
+- `B-` → Futura peripheral bus `B`
 - `SGND` → Futura `GND/COM` (optional — try without first)
 
 If you see CRC errors — swap the `A+` and `B-` wires.
@@ -110,9 +111,8 @@ pip install esphome
 #### Step 2: Clone the repository
 
 ```bash
-git clone https://github.com/juzis28/HA-projektai.git
-cd HA-projektai
-git checkout cursor/futura-bus-esphome-perk-limas-2ab6
+git clone https://github.com/juzis28/futura-bus-sniffer-esphome.git
+cd futura-bus-sniffer-esphome
 ```
 
 #### Step 3: Create secrets.yaml
@@ -245,7 +245,7 @@ Futura communicates with VarioBreeze dampers over RS485 using the **Modbus RTU**
 
 | Problem | Solution |
 |---------|----------|
-| **No frames visible** | Check wiring — GPIO16 must be connected to Waveshare **TXD** (not RXD). Check that Waveshare VCC is getting 3.3V. |
+| **No frames visible** | Check wiring — the RX pin (GPIO32 by default) must be connected to Waveshare **TXD** (not RXD). Check that Waveshare VCC is getting 3.3V. |
 | **Frames visible but CRC errors** | Swap A+ and B- wires. Try a different baud rate: start with 19200, then try 9600. |
 | **Frames OK but no damper data** | Check that the `slave_id` values match the DIP switch settings on the dampers. |
 | **WiFi unstable** | If the ESP32 is inside a metal enclosure — use a U.FL variant with an external antenna, or mount the ESP32 outside the enclosure. |
@@ -260,13 +260,13 @@ Futura communicates with VarioBreeze dampers over RS485 using the **Modbus RTU**
 |---|---|---|
 | Chip | ESP32-D0WD (rev 1) | ESP32-D0WDR2-V3 (rev 3) |
 | Flash | External SPI, 4 MB | Embedded, 4 MB |
-| GPIO16/17 | Free | Free |
+| GPIO32 | Free | Free |
 | Compatibility | Full | Full |
 | Recommendation | Works fine | **Recommended** (newer revision) |
 
 Both modules work identically. The 32E is a newer revision with hardware bug fixes.
 
-**Not recommended:** ESP32-**WROVER** (with PSRAM) — GPIO16/17 are used by PSRAM. If using WROVER, change `rx_pin` to another pin (e.g. GPIO25, GPIO32, GPIO33).
+**Note on WROVER:** ESP32-WROVER (with PSRAM) uses GPIO16/17 for PSRAM. The default `rx_pin: GPIO32` avoids this — WROVER works without changes.
 
 ---
 
