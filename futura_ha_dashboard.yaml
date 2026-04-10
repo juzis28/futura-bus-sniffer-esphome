@@ -1,0 +1,448 @@
+title: Futura VarioBreeze
+path: variobreeze
+icon: mdi:air-filter
+
+# Room label mapping (edit here to localise):
+#   Living  = Living room
+#   Room1   = Bedroom
+#   Room2   = Room 2
+#   Room3   = Room 3 ✱
+#   Room4   = Room 4 ✱
+#   Office  = Office ✱
+
+views:
+
+  # ===========================================================================
+  # 1. Air quality
+  # ===========================================================================
+  - title: Oras
+    path: oras
+    icon: mdi:molecule-co2
+    cards:
+
+      - type: horizontal-stack
+        cards:
+          - type: custom:mushroom-template-card
+            primary: Futura sistema
+            secondary: >
+              Kadrai: {{ states('sensor.futura_variobreeze_rs485_frames') | int(0) }}
+              · OK: {{ states('sensor.futura_variobreeze_rs485_valid_frames') | int(0) }}
+            icon: mdi:hvac
+            icon_color: >
+              {% set t = states('sensor.futura_variobreeze_rs485_frames') | int(1) %}
+              {% set v = states('sensor.futura_variobreeze_rs485_valid_frames') | int(0) %}
+              {% if v / t > 0.95 %}green{% elif v / t > 0.7 %}orange{% else %}red{% endif %}
+
+          - type: custom:mushroom-template-card
+            primary: Ventiliatorius
+            secondary: >
+              L{{ (states('sensor.futura_variobreeze_fan_airflow_step') | int(64)) // 64 }}
+              · T:{{ states('sensor.futura_variobreeze_supply_fan_setpoint') | int(0) }} m³/h
+              · I:{{ states('sensor.futura_variobreeze_exhaust_fan_setpoint') | int(0) }} m³/h
+            icon: mdi:fan
+            icon_color: >
+              {% set s = states('sensor.futura_variobreeze_fan_airflow_step') | int(64) %}
+              {% if s >= 256 %}red{% elif s >= 192 %}orange{% else %}green{% endif %}
+
+      - type: glance
+        title: Living room (ALFA panel · slave 16)
+        show_name: true
+        columns: 3
+        entities:
+          - entity: sensor.futura_variobreeze_living_temp
+            name: Temp
+          - entity: sensor.futura_variobreeze_living_humidity
+            name: Humidity
+          - entity: sensor.futura_variobreeze_living_co2
+            name: CO₂
+
+      - type: markdown
+        content: >
+          ### CO₂ ppm · Trend: 🔴 rising · 🟢 falling
+
+      - type: custom:bar-card
+        entities:
+          - entity: sensor.futura_variobreeze_room1_co2
+            name: "Bedroom"
+            color: "#4CAF50"
+          - entity: sensor.futura_variobreeze_room2_co2
+            name: "Room 2"
+            color: "#4CAF50"
+          - entity: sensor.futura_variobreeze_room3_co2
+            name: "Room 3 ✱"
+            color: "#4CAF50"
+          - entity: sensor.futura_variobreeze_room4_co2
+            name: "Room 4 ✱"
+            color: "#4CAF50"
+          - entity: sensor.futura_variobreeze_office_co2
+            name: "Office ✱"
+            color: "#4CAF50"
+        unit_of_measurement: ppm
+        max: 1500
+        height: 28px
+        columns: 1
+        show_icon: false
+        indicator: true
+        severity:
+          - value: 0
+            color: "#4CAF50"
+          - value: 800
+            color: "#FF9800"
+          - value: 1200
+            color: "#f44336"
+
+      - type: markdown
+        content: "### Temp · Humidity · CO₂  ·  ✱ = boost button"
+
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: glance
+            title: Bedroom
+            columns: 3
+            entities:
+              - entity: sensor.futura_variobreeze_room1_temp
+                name: "°C"
+              - entity: sensor.futura_variobreeze_room1_humidity
+                name: "RH%"
+              - entity: sensor.futura_variobreeze_room1_co2
+                name: "ppm"
+          - type: glance
+            title: "Room 2"
+            columns: 3
+            entities:
+              - entity: sensor.futura_variobreeze_room2_temp
+                name: "°C"
+              - entity: sensor.futura_variobreeze_room2_humidity
+                name: "RH%"
+              - entity: sensor.futura_variobreeze_room2_co2
+                name: "ppm"
+          - type: glance
+            title: "Room 3 ✱"
+            columns: 3
+            entities:
+              - entity: sensor.futura_variobreeze_room3_temp
+                name: "°C"
+              - entity: sensor.futura_variobreeze_room3_humidity
+                name: "RH%"
+              - entity: sensor.futura_variobreeze_room3_co2
+                name: "ppm"
+          - type: glance
+            title: "Room 4 ✱"
+            columns: 3
+            entities:
+              - entity: sensor.futura_variobreeze_room4_temp
+                name: "°C"
+              - entity: sensor.futura_variobreeze_room4_humidity
+                name: "RH%"
+              - entity: sensor.futura_variobreeze_room4_co2
+                name: "ppm"
+          - type: glance
+            title: "Office ✱"
+            columns: 3
+            entities:
+              - entity: sensor.futura_variobreeze_office_temp
+                name: "°C"
+              - entity: sensor.futura_variobreeze_office_humidity
+                name: "RH%"
+              - entity: sensor.futura_variobreeze_office_co2
+                name: "ppm"
+
+  # ===========================================================================
+  # 2. Dampers
+  # ===========================================================================
+  - title: Sklendės
+    path: sklendes
+    icon: mdi:valve
+    cards:
+
+      - type: glance
+        title: "Boost (0=laukia · 1=aktyvuotas)"
+        show_name: true
+        columns: 3
+        entities:
+          - entity: sensor.futura_variobreeze_boost_bathroom
+            name: Bathroom
+            icon: mdi:shower
+          - entity: sensor.futura_variobreeze_boost_wc
+            name: WC
+            icon: mdi:toilet
+          - entity: sensor.futura_variobreeze_boost_kitchen
+            name: Kitchen
+            icon: mdi:chef-hat
+
+      - type: markdown
+        content: >
+          ### Supply dampers · Trend: 🟢 opening · 🔴 closing
+
+      - type: custom:bar-card
+        entities:
+          - entity: sensor.futura_variobreeze_supply_64_position
+            name: "64 – Living room A"
+            color: "#2196F3"
+          - entity: sensor.futura_variobreeze_supply_65_position
+            name: "65 – Room 2"
+            color: "#4CAF50"
+          - entity: sensor.futura_variobreeze_supply_66_position
+            name: "66 – Room 3"
+            color: "#4CAF50"
+          - entity: sensor.futura_variobreeze_supply_67_position
+            name: "67 – Room 4"
+            color: "#4CAF50"
+          - entity: sensor.futura_variobreeze_supply_68_position
+            name: "68 – Bedroom B"
+            color: "#FF9800"
+          - entity: sensor.futura_variobreeze_supply_69_position
+            name: "69 – Office"
+            color: "#9C27B0"
+          - entity: sensor.futura_variobreeze_supply_72_position
+            name: "72 – Living room B"
+            color: "#2196F3"
+          - entity: sensor.futura_variobreeze_supply_73_position
+            name: "73 – Bedroom A"
+            color: "#FF9800"
+          - entity: sensor.futura_variobreeze_supply_80_position
+            name: "80 – Living room C"
+            color: "#2196F3"
+        unit_of_measurement: "%"
+        max: 100
+        height: 28px
+        columns: 2
+        show_icon: false
+        indicator: true
+
+      - type: markdown
+        content: >
+          ### Exhaust dampers · Trend: 🟢 opening · 🔴 closing
+
+          Boost: aktyvuota zona 100%, kitos 0%.
+          **Kitchen: 96+104 · WC: 97+105 · Bathroom: 98+106 · Bedroom: 99 · Tech: 100 · Hallway: 101 (DIP)**
+
+      - type: custom:bar-card
+        entities:
+          - entity: sensor.futura_variobreeze_exhaust_96_position
+            name: "96 – Kitchen A"
+            color: "#FF5722"
+          - entity: sensor.futura_variobreeze_exhaust_104_position
+            name: "104 – Kitchen B"
+            color: "#FF5722"
+          - entity: sensor.futura_variobreeze_exhaust_97_position
+            name: "97 – WC A"
+            color: "#FF9800"
+          - entity: sensor.futura_variobreeze_exhaust_105_position
+            name: "105 – WC B"
+            color: "#FF9800"
+          - entity: sensor.futura_variobreeze_exhaust_98_position
+            name: "98 – Bathroom A"
+            color: "#2196F3"
+          - entity: sensor.futura_variobreeze_exhaust_106_position
+            name: "106 – Bathroom B"
+            color: "#2196F3"
+          - entity: sensor.futura_variobreeze_exhaust_99_position
+            name: "99 – Bedroom"
+            color: "#9E9E9E"
+          - entity: sensor.futura_variobreeze_exhaust_100_position
+            name: "100 – Utility room"
+            color: "#9E9E9E"
+          - entity: sensor.futura_variobreeze_exhaust_101_position
+            name: "101 – Hallway"
+            color: "#9E9E9E"
+        unit_of_measurement: "%"
+        max: 100
+        height: 28px
+        columns: 2
+        show_icon: false
+        indicator: true
+
+      - type: markdown
+        content: "### Status (reg107) · 0=starting · 1=stable · 4=moving(boost)"
+
+      - type: entities
+        title: Tiekimas statusai
+        entities:
+          - entity: sensor.futura_variobreeze_supply_64_status
+            name: "64 – Living room A"
+          - entity: sensor.futura_variobreeze_supply_65_status
+            name: "65 – Room 2"
+          - entity: sensor.futura_variobreeze_supply_66_status
+            name: "66 – Room 3"
+          - entity: sensor.futura_variobreeze_supply_67_status
+            name: "67 – Room 4"
+          - entity: sensor.futura_variobreeze_supply_68_status
+            name: "68 – Bedroom B"
+          - entity: sensor.futura_variobreeze_supply_69_status
+            name: "69 – Office"
+          - entity: sensor.futura_variobreeze_supply_72_status
+            name: "72 – Living room B"
+          - entity: sensor.futura_variobreeze_supply_73_status
+            name: "73 – Bedroom A"
+          - entity: sensor.futura_variobreeze_supply_80_status
+            name: "80 – Living room C"
+
+      - type: entities
+        title: Ištraukimas statusai
+        entities:
+          - entity: sensor.futura_variobreeze_exhaust_96_status
+            name: "96 – Kitchen A"
+          - entity: sensor.futura_variobreeze_exhaust_97_status
+            name: "97 – WC A"
+          - entity: sensor.futura_variobreeze_exhaust_98_status
+            name: "98 – Bathroom A"
+          - entity: sensor.futura_variobreeze_exhaust_99_status
+            name: "99 – Bedroom"
+          - entity: sensor.futura_variobreeze_exhaust_100_status
+            name: "100 – Utility room"
+          - entity: sensor.futura_variobreeze_exhaust_101_status
+            name: "101 – Hallway"
+          - entity: sensor.futura_variobreeze_exhaust_104_status
+            name: "104 – Kitchen B"
+          - entity: sensor.futura_variobreeze_exhaust_105_status
+            name: "105 – WC B"
+          - entity: sensor.futura_variobreeze_exhaust_106_status
+            name: "106 – Bathroom B"
+
+  # ===========================================================================
+  # 3. System
+  # ===========================================================================
+  - title: Sistema
+    path: sistema
+    icon: mdi:gauge
+    cards:
+
+      - type: markdown
+        content: >
+          ### Ventiliatoriaus sistema
+
+          **reg49** = srautas lygis: 64=L1(min) · 128=L2 · 192=L3 · 256=L4 · 320=L5(boost)
+
+          **reg198/199** = absoliutus srautas (m³/h), NE %: gali viršyti 100
+
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            entity: sensor.futura_variobreeze_fan_airflow_step
+            name: "Srautas (reg49)"
+            min: 0
+            max: 320
+            needle: true
+            severity:
+              green: 0
+              yellow: 192
+              red: 256
+          - type: gauge
+            entity: sensor.futura_variobreeze_supply_fan_setpoint
+            name: "Tiekimas m³/h"
+            min: 0
+            max: 150
+            needle: true
+            severity:
+              green: 0
+              yellow: 80
+              red: 110
+          - type: gauge
+            entity: sensor.futura_variobreeze_exhaust_fan_setpoint
+            name: "Ištraukimas m³/h"
+            min: 0
+            max: 150
+            needle: true
+            severity:
+              green: 0
+              yellow: 80
+              red: 110
+
+      - type: entities
+        title: Misc registers
+        entities:
+          - entity: sensor.futura_variobreeze_transition_timer
+            name: "Transition timer"
+            icon: mdi:timer-outline
+          - entity: sensor.futura_variobreeze_ramp_countdown_r256
+            name: "Ramp countdown r256"
+            icon: mdi:timer-sand
+          - entity: sensor.futura_variobreeze_alfa_r252_constant
+            name: "r252 = 75 (unknown constant)"
+            icon: mdi:help-circle-outline
+          - entity: sensor.futura_variobreeze_boost_bathroom
+            name: "Bathroom boost pulse (s34 r106)"
+            icon: mdi:shower
+          - entity: sensor.futura_variobreeze_boost_wc
+            name: "WC boost pulse (s33 r106)"
+            icon: mdi:toilet
+          - entity: sensor.futura_variobreeze_boost_kitchen
+            name: "Kitchen boost pulse (s32 r106)"
+            icon: mdi:chef-hat
+          - entity: sensor.futura_variobreeze_peripheral_32_r105
+            name: "s32 r105 (always 0)"
+          - entity: sensor.futura_variobreeze_peripheral_33_r105
+            name: "s33 r105 (always 0)"
+          - entity: sensor.futura_variobreeze_peripheral_34_r105
+            name: "s34 r105 (always 0)"
+
+      - type: entities
+        title: Duct registers (ALFA16 regs 50-56 · always 0)
+        entities:
+  # ===========================================================================
+  # 4. Diagnostics
+  # ===========================================================================
+  - title: Diagnostika
+    path: diagnostika
+    icon: mdi:magnify
+    cards:
+
+      - type: entities
+        title: RS485
+        entities:
+          - sensor.futura_variobreeze_rs485_bytes
+          - sensor.futura_variobreeze_rs485_frames
+          - sensor.futura_variobreeze_rs485_valid_frames
+          - sensor.futura_variobreeze_wifi_signal
+          - sensor.futura_variobreeze_uptime
+
+      - type: entities
+        title: Discovery
+        entities:
+          - entity: sensor.futura_variobreeze_discovery
+            name: All visible registers
+
+      - type: markdown
+        content: >
+          ### Known register map (v9)
+
+          | Slave | Reg | Meaning | Scale | Status |
+          |-------|-----|---------|-------|--------|
+          | 9-13 | 91 | status (1=plain, 3=has boost btn) | — | ✓ |
+          | 9-13 | 92 | outdoor temp | ×0.01 °C | ✓ |
+          | 9-13 | 93 | room temp | ×0.01 °C | ✓ |
+          | 9-13 | 94 | humidity | ×0.01 %RH | ✓ |
+          | 9-13 | 95 | CO₂ (max 5000 ppm) | 1 ppm | ✓ |
+          | 16 | 37 | ALFA own CO₂ | 1 ppm | ✓ |
+          | 16 | 49 | fan airflow step | 64/128/192/256/320 | ✓ |
+          | 16 | 50-66 | duct registers | always 0 | ❓ |
+          | 16 | 68-70 | temp/RH/CO₂ | ×0.1/1/1 | ✓ |
+          | 16 | 102 | ALFA internal (~23-44) | unknown | ❓ |
+          | 16 | 181 | mode | 1=normal | ✓ |
+          | 16 | 193 | nominal airflow | 230 m³/h const | ✓ |
+          | 16 | 194 | active zones | 6 const | ✓ |
+          | 16 | 198 | exhaust abs. setpoint | m³/h | ✓ |
+          | 16 | 199 | supply abs. setpoint | m³/h | ✓ |
+          | 16 | 252 | unknown constant | =75 | ❓ |
+          | 16 | 253-254 | calibration constant | =1439 | — |
+          | 16 | 255 | fan speed loop | 796-1058 | ✓ |
+          | 16 | 296 | boost start cmd | FC16 write | ✓ |
+          | 16 | 14 | boost pacing | FC16 write | ✓ |
+          | 32-34 | 105 | unknown | always 0 | ❓ |
+          | 32-34 | 106 | boost button pulse | 0→1→0 | ✓ |
+          | 64-127 | 102 | target position | % | ✓ |
+          | 64-127 | 107 | status 0=moving·1=stable·4=moving | — | ✓ |
+
+          **Zone map:**
+          s9=bedroom s10=room2 s11=room3 s12=room4 s13=office s16=living
+
+          **Supply:** 64=living_A 65=room2 66=room3 67=room4 68=bedroom_B
+          69=office 72=living_B 73=bedroom_A 80=living_C
+
+          **Exhaust:** 96+104=kitchen 97+105=wc 98+106=bathroom
+          99=Bedroom · 100=Tech · 101=Hallway (DIP verified)
+
+          **Boost:** s32=kitchen s33=wc s34=bathroom

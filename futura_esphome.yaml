@@ -1,0 +1,808 @@
+# =============================================================================
+# Futura VarioBreeze — ESPHome v9
+# https://github.com/juzis28/HA-projektai
+#
+# Device: ESP32-WROOM-32D, passive RS485 sniffer (RX only)
+# Protocol: Modbus RTU 19200/8N1, RS485
+#
+# Entity naming: generic English (room1-room4, office, living_room)
+# so entity IDs are internationally reusable.
+# Room labels (whose room is which) are only in the dashboard.
+#
+# Confirmed room mapping:
+#   sensor slave 9  = room1  (bedroom)
+#   sensor slave 10 = room2  (child room 1)
+#   sensor slave 11 = room3  (child room 2 / Paulius, has boost button)
+#   sensor slave 12 = room4  (child room 3 / Nojus, has boost button)
+#   sensor slave 13 = office (office, has boost button)
+#   sensor slave 16 = living (ALFA main panel)
+#
+# Supply damper mapping (confirmed via CO2 correlation):
+#   64 = living_room_a, 65 = room2, 66 = room3, 67 = room4
+#   68 = room1_b (bedroom 2nd point), 69 = office
+#   72 = living_room_b, 73 = room1_a (bedroom 1st point), 80 = living_room_c
+#
+# Exhaust damper mapping (confirmed via boost test):
+#   96+104 = kitchen, 97+105 = wc, 98+106 = bathroom
+#   99 = bedroom (DIP1+2+6), 100 = tech room (DIP3+6), 101 = hallway (DIP1+3+6) — verify with DIP photos
+#
+# Boost button mapping (confirmed via reg106 pulse):
+#   slave 32 = kitchen boost, slave 33 = wc boost, slave 34 = bathroom boost
+# =============================================================================
+
+esphome:
+  name: futura-variobreeze
+  friendly_name: Futura VarioBreeze
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  level: DEBUG
+  baud_rate: 0
+  logs:
+    futura_bus: DEBUG
+    wifi: WARN
+    api: WARN
+    ota: WARN
+    mdns: WARN
+    sensor: WARN
+    text_sensor: WARN
+
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Futura-Bus-Fallback"
+    password: !secret fallback_password
+
+captive_portal:
+
+web_server:
+  port: 80
+
+# ── RS485 UART ──────────────────────────────────────────────────────────────
+# Wiring (RX only — passive sniffer):
+#   ESP32 GPIO32 (RX2) ←── Waveshare TXD
+#   ESP32 3V3          ──→ Waveshare VCC
+#   ESP32 GND          ──→ Waveshare GND
+#   Waveshare A+       ──→ Futura RS485 A
+#   Waveshare B-       ──→ Futura RS485 B
+#   Waveshare 120R switch = OFF
+uart:
+  id: rs485_uart
+  rx_pin: GPIO32
+  baud_rate: 19200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+external_components:
+  - source:
+      type: local
+      path: components
+
+# =============================================================================
+futura_bus:
+  id: futura
+  uart_id: rs485_uart
+  frame_gap_ms: 3.0
+  discovery_mode: true
+  summary_interval_s: 60
+
+  # ── Diagnostic counters ─────────────────────────────────────────────────────
+  bytes_sensor:
+    name: "RS485 bytes"
+    accuracy_decimals: 0
+    icon: mdi:counter
+  frames_sensor:
+    name: "RS485 frames"
+    accuracy_decimals: 0
+    icon: mdi:counter
+  valid_frames_sensor:
+    name: "RS485 valid frames"
+    accuracy_decimals: 0
+    icon: mdi:check-circle
+  discovery_sensor:
+    name: "Discovery"
+    icon: mdi:magnify
+
+  # ── Fan system sensors ──────────────────────────────────────────────────────
+  # reg49: fan airflow step: 64=L1(min) … 320=L5(boost). NOT m³/h directly.
+  # reg198: exhaust absolute setpoint — observed 44-119, likely m³/h
+  # reg199: supply absolute setpoint — observed 41-94, likely m³/h
+  # reg255: fan speed closed-loop (Futura writes every ~2s, reads back)
+  fan_airflow_sensor:
+    name: "Fan airflow step"
+    accuracy_decimals: 0
+    icon: mdi:fan
+  exhaust_fan_sensor:
+    name: "Exhaust fan setpoint"
+    accuracy_decimals: 0
+    icon: mdi:fan-chevron-up
+  supply_fan_sensor:
+    name: "Supply fan setpoint"
+    accuracy_decimals: 0
+    icon: mdi:fan-chevron-down
+
+  # ── Misc register sensors (boost events, timers, diagnostics) ─────────────────────────────
+  pressure_sensors:
+    # Boost button event sensors (slaves 32-34, reg106)
+    # Value briefly becomes 1 when button is pressed, then returns to 0
+    - slave_id: 34
+      reg_addr: 106
+      label: "Boost bathroom"
+      sensor:
+        name: "Boost bathroom"
+        accuracy_decimals: 0
+        icon: mdi:shower
+
+    - slave_id: 33
+      reg_addr: 106
+      label: "Boost WC"
+      sensor:
+        name: "Boost WC"
+        accuracy_decimals: 0
+        icon: mdi:toilet
+
+    - slave_id: 32
+      reg_addr: 106
+      label: "Boost kitchen"
+      sensor:
+        name: "Boost kitchen"
+        accuracy_decimals: 0
+        icon: mdi:chef-hat
+
+    # Unknown peripheral registers (always 0)
+    - slave_id: 32
+      reg_addr: 105
+      label: "Peripheral 32 r105"
+      sensor:
+        name: "Peripheral 32 r105"
+        accuracy_decimals: 0
+        icon: mdi:help-circle-outline
+
+    - slave_id: 33
+      reg_addr: 105
+      label: "Peripheral 33 r105"
+      sensor:
+        name: "Peripheral 33 r105"
+        accuracy_decimals: 0
+        icon: mdi:help-circle-outline
+
+    - slave_id: 34
+      reg_addr: 105
+      label: "Peripheral 34 r105"
+      sensor:
+        name: "Peripheral 34 r105"
+        accuracy_decimals: 0
+        icon: mdi:help-circle-outline
+
+    # Transition timer — countdown ~59→0 during ramp-up and circulation
+    - slave_id: 16
+      reg_addr: 255
+      label: "Transition timer"
+      sensor:
+        name: "Transition timer"
+        icon: mdi:timer-outline
+        unit_of_measurement: "s"
+        accuracy_decimals: 0
+
+    # Ramp/countdown register — written via FC16 every ~2s
+    # Observed: 59→0 over ~57s during fan speed transitions
+    # FC3 readback always 0; real values come from FC16 writes
+    - slave_id: 16
+      reg_addr: 256
+      label: "Ramp countdown r256"
+      sensor:
+        name: "Ramp countdown r256"
+        icon: mdi:timer-sand
+        unit_of_measurement: "s"
+        accuracy_decimals: 0
+
+    # Unknown ALFA16 constant (always 75 — NOT filter wear, Modbus TCP shows 66%)
+    - slave_id: 16
+      reg_addr: 252
+      label: "ALFA r252 constant"
+      sensor:
+        name: "ALFA r252 constant"
+        accuracy_decimals: 0
+        icon: mdi:help-circle-outline
+
+  # ── Zone devices (wall sensors + ALFA panel) ────────────────────────────────
+  zone_devices:
+    - slave_id: 16
+      room: "living"         # ALFA main panel
+
+    - slave_id: 9
+      room: "room1"          # bedroom
+
+    - slave_id: 10
+      room: "room2"          # child room 1 (no boost button)
+
+    - slave_id: 11
+      room: "room3"          # child room 2 (has boost button, status=3)
+
+    - slave_id: 12
+      room: "room4"          # child room 3 (has boost button, status=3)
+
+    - slave_id: 13
+      room: "office"         # office (has boost button, status=3)
+
+  # ── Supply dampers (privod) ──────────────────────────────────────────────────
+  dampers:
+    - slave_id: 64
+      room: "Supply living room A"
+      zone: 1
+      damper_type: privod
+      damper_index: 1
+
+    - slave_id: 65
+      room: "Supply room2"
+      zone: 2
+      damper_type: privod
+      damper_index: 1
+
+    - slave_id: 66
+      room: "Supply room3"
+      zone: 3
+      damper_type: privod
+      damper_index: 1
+
+    - slave_id: 67
+      room: "Supply room4"
+      zone: 4
+      damper_type: privod
+      damper_index: 1
+
+    - slave_id: 68
+      room: "Supply room1 B"
+      zone: 5
+      damper_type: privod
+      damper_index: 2
+
+    - slave_id: 69
+      room: "Supply office"
+      zone: 6
+      damper_type: privod
+      damper_index: 1
+
+    - slave_id: 72
+      room: "Supply living room B"
+      zone: 1
+      damper_type: privod
+      damper_index: 2
+
+    - slave_id: 73
+      room: "Supply room1 A"
+      zone: 5
+      damper_type: privod
+      damper_index: 1
+
+    - slave_id: 80
+      room: "Supply living room C"
+      zone: 1
+      damper_type: privod
+      damper_index: 3
+
+    # ── Exhaust dampers (odtah) ────────────────────────────────────────────────
+    # Confirmed via boost test (zone that STAYS at 100% = boost zone):
+    #   kitchen boost  → 96+104 stay open
+    #   wc boost       → 97+105 stay open
+    #   bathroom boost → 98+106 stay open
+    - slave_id: 96
+      room: "Exhaust kitchen A"
+      zone: 7
+      damper_type: odtah
+      damper_index: 1
+
+    - slave_id: 97
+      room: "Exhaust WC A"
+      zone: 8
+      damper_type: odtah
+      damper_index: 1
+
+    - slave_id: 98
+      room: "Exhaust bathroom A"
+      zone: 9
+      damper_type: odtah
+      damper_index: 1
+
+    - slave_id: 99
+      room: "Exhaust bedroom"
+      zone: 10
+      damper_type: odtah
+      damper_index: 1
+
+    - slave_id: 100
+      room: "Exhaust tech room"
+      zone: 11
+      damper_type: odtah
+      damper_index: 1
+
+    - slave_id: 101
+      room: "Exhaust hallway"
+      zone: 12
+      damper_type: odtah
+      damper_index: 1
+
+    - slave_id: 104
+      room: "Exhaust kitchen B"
+      zone: 7
+      damper_type: odtah
+      damper_index: 2
+
+    - slave_id: 105
+      room: "Exhaust WC B"
+      zone: 8
+      damper_type: odtah
+      damper_index: 2
+
+    - slave_id: 106
+      room: "Exhaust bathroom B"
+      zone: 9
+      damper_type: odtah
+      damper_index: 2
+
+# =============================================================================
+# Sensors
+# Entity IDs: sensor.futura_variobreeze_{name_slugified}
+# =============================================================================
+sensor:
+
+  # ── ALFA panel / living room (slave 16) ───────────────────────────────────
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 16
+    sensor_type: zone_temp
+    name: "Living temp"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    icon: mdi:thermometer
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 16
+    sensor_type: zone_humidity
+    name: "Living humidity"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:water-percent
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 16
+    sensor_type: zone_co2
+    name: "Living co2"
+    unit_of_measurement: "ppm"
+    accuracy_decimals: 0
+    icon: mdi:molecule-co2
+
+  # ── Room 1 / bedroom (slave 9) ────────────────────────────────────────────
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 9
+    sensor_type: zone_temp
+    name: "Room1 temp"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    icon: mdi:thermometer
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 9
+    sensor_type: zone_humidity
+    name: "Room1 humidity"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:water-percent
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 9
+    sensor_type: zone_co2
+    name: "Room1 co2"
+    unit_of_measurement: "ppm"
+    accuracy_decimals: 0
+    icon: mdi:molecule-co2
+
+  # ── Room 2 (slave 10) ─────────────────────────────────────────────────────
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 10
+    sensor_type: zone_temp
+    name: "Room2 temp"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    icon: mdi:thermometer
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 10
+    sensor_type: zone_humidity
+    name: "Room2 humidity"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:water-percent
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 10
+    sensor_type: zone_co2
+    name: "Room2 co2"
+    unit_of_measurement: "ppm"
+    accuracy_decimals: 0
+    icon: mdi:molecule-co2
+
+  # ── Room 3 (slave 11, boost button) ──────────────────────────────────────
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 11
+    sensor_type: zone_temp
+    name: "Room3 temp"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    icon: mdi:thermometer
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 11
+    sensor_type: zone_humidity
+    name: "Room3 humidity"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:water-percent
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 11
+    sensor_type: zone_co2
+    name: "Room3 co2"
+    unit_of_measurement: "ppm"
+    accuracy_decimals: 0
+    icon: mdi:molecule-co2
+
+  # ── Room 4 (slave 12, boost button) ──────────────────────────────────────
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 12
+    sensor_type: zone_temp
+    name: "Room4 temp"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    icon: mdi:thermometer
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 12
+    sensor_type: zone_humidity
+    name: "Room4 humidity"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:water-percent
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 12
+    sensor_type: zone_co2
+    name: "Room4 co2"
+    unit_of_measurement: "ppm"
+    accuracy_decimals: 0
+    icon: mdi:molecule-co2
+
+  # ── Office (slave 13, boost button) ──────────────────────────────────────
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 13
+    sensor_type: zone_temp
+    name: "Office temp"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    icon: mdi:thermometer
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 13
+    sensor_type: zone_humidity
+    name: "Office humidity"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:water-percent
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 13
+    sensor_type: zone_co2
+    name: "Office co2"
+    unit_of_measurement: "ppm"
+    accuracy_decimals: 0
+    icon: mdi:molecule-co2
+
+  # ── Supply dampers ────────────────────────────────────────────────────────
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 64
+    sensor_type: position
+    name: "Supply 64 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 64
+    sensor_type: status
+    name: "Supply 64 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 65
+    sensor_type: position
+    name: "Supply 65 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 65
+    sensor_type: status
+    name: "Supply 65 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 66
+    sensor_type: position
+    name: "Supply 66 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 66
+    sensor_type: status
+    name: "Supply 66 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 67
+    sensor_type: position
+    name: "Supply 67 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 67
+    sensor_type: status
+    name: "Supply 67 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 68
+    sensor_type: position
+    name: "Supply 68 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 68
+    sensor_type: status
+    name: "Supply 68 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 69
+    sensor_type: position
+    name: "Supply 69 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 69
+    sensor_type: status
+    name: "Supply 69 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 72
+    sensor_type: position
+    name: "Supply 72 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 72
+    sensor_type: status
+    name: "Supply 72 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 73
+    sensor_type: position
+    name: "Supply 73 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 73
+    sensor_type: status
+    name: "Supply 73 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 80
+    sensor_type: position
+    name: "Supply 80 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 80
+    sensor_type: status
+    name: "Supply 80 status"
+    accuracy_decimals: 0
+
+  # ── Exhaust dampers ───────────────────────────────────────────────────────
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 96
+    sensor_type: position
+    name: "Exhaust 96 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 96
+    sensor_type: status
+    name: "Exhaust 96 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 97
+    sensor_type: position
+    name: "Exhaust 97 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 97
+    sensor_type: status
+    name: "Exhaust 97 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 98
+    sensor_type: position
+    name: "Exhaust 98 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 98
+    sensor_type: status
+    name: "Exhaust 98 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 99
+    sensor_type: position
+    name: "Exhaust 99 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 99
+    sensor_type: status
+    name: "Exhaust 99 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 100
+    sensor_type: position
+    name: "Exhaust 100 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 100
+    sensor_type: status
+    name: "Exhaust 100 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 101
+    sensor_type: position
+    name: "Exhaust 101 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 101
+    sensor_type: status
+    name: "Exhaust 101 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 104
+    sensor_type: position
+    name: "Exhaust 104 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 104
+    sensor_type: status
+    name: "Exhaust 104 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 105
+    sensor_type: position
+    name: "Exhaust 105 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 105
+    sensor_type: status
+    name: "Exhaust 105 status"
+    accuracy_decimals: 0
+
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 106
+    sensor_type: position
+    name: "Exhaust 106 position"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: mdi:valve
+  - platform: futura_bus
+    futura_bus_id: futura
+    slave_id: 106
+    sensor_type: status
+    name: "Exhaust 106 status"
+    accuracy_decimals: 0
+
+  # ── System ────────────────────────────────────────────────────────────────
+  - platform: wifi_signal
+    name: "WiFi signal"
+    update_interval: 60s
+
+  - platform: uptime
+    name: "Uptime"
+    accuracy_decimals: 0
