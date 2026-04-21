@@ -19,6 +19,8 @@ It decodes Modbus RTU frames and extracts:
 
 Each damper appears in **Home Assistant** as an ESPHome sensor — no MQTT needed (though ESPHome supports MQTT too).
 
+All devices are **auto-discovered** from bus traffic — no need to pre-configure slave addresses. Just flash and go.
+
 ---
 
 ## Required files
@@ -52,6 +54,7 @@ The `components/` directory contains C++ code that ESPHome compiles into firmwar
 
 ```
 ESP32 WROOM32                 Waveshare TTL TO RS485 (B)            Futura RS-485
+=============                 ==========================            =============
 
 3V3           ──────────────> VCC
 GND           ──────────────> GND
@@ -132,11 +135,11 @@ Generate the API key:
 python3 -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
 ```
 
-#### Step 4: Edit the damper map
+#### Step 4: Configure sensors for Home Assistant (optional)
 
-Open `futura_esphome.yaml` and edit the `dampers:` section to match your home's damper configuration.
+The sniffer auto-discovers all dampers and sensors from bus traffic — no configuration needed.
 
-For each damper you need to know the `slave_id`, which is determined by the DIP switches on the damper:
+To expose specific dampers or sensors as Home Assistant entities, add them to the `sensor:` section in `futura_esphome.yaml`. You need to know each device's `slave_id`, which is determined by DIP switches:
 
 ```
 slave_id = 64 + DIP1×1 + DIP2×2 + DIP3×4 + DIP4×8 + DIP5×16 + DIP6×32
@@ -190,13 +193,30 @@ futura_bus:
   id: futura
   uart_id: rs485_uart
   frame_gap_ms: 3.0            # inter-frame gap (ms)
-  dampers:
-    - slave_id: 64
-      room: "Living room"      # room name (for logs)
-      zone: 1                  # zone number in Futura
-      damper_type: privod      # "privod" (supply) or "odtah" (exhaust)
-      damper_index: 1          # index if zone has multiple dampers
 ```
+
+That's it — **no damper or sensor list needed**. The sniffer auto-discovers all devices on the bus from Modbus traffic and derives their type, zone, and index from the slave address.
+
+To add custom room names (optional):
+
+```yaml
+futura_bus:
+  id: futura
+  uart_id: rs485_uart
+  frame_gap_ms: 3.0
+  dampers:                       # optional — only for room labels
+    - slave_id: 64
+      room: "Living room A"
+    - slave_id: 96
+      room: "Kitchen A"
+  zone_devices:                  # optional — only for room labels
+    - slave_id: 9
+      room: "Bedroom"
+    - slave_id: 16
+      room: "Living room"
+```
+
+Devices not listed here are auto-discovered with generated names like "SUPPLY Z1", "EXHAUST Z3-I2", "Zone 1", etc.
 
 ### sensor (platform: futura_bus)
 
@@ -214,7 +234,7 @@ sensor:
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `futura_bus_id` | yes | `futura_bus` component ID |
-| `slave_id` | yes | Damper Modbus address (1–247) |
+| `slave_id` | yes | Damper Modbus address (64–95 supply, 96–127 exhaust) |
 | `sensor_type` | yes | `position` (register 102, position %) or `status` (register 107, status code) |
 | `name` | yes | Name shown in the Home Assistant dashboard |
 

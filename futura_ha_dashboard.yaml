@@ -15,17 +15,17 @@ views:
   # ===========================================================================
   # 1. Air quality
   # ===========================================================================
-  - title: Oras
-    path: oras
+  - title: Air quality
+    path: air-quality
     icon: mdi:molecule-co2
     cards:
 
       - type: horizontal-stack
         cards:
           - type: custom:mushroom-template-card
-            primary: Futura sistema
+            primary: Futura system
             secondary: >
-              Kadrai: {{ states('sensor.futura_variobreeze_rs485_frames') | int(0) }}
+              Frames: {{ states('sensor.futura_variobreeze_rs485_frames') | int(0) }}
               · OK: {{ states('sensor.futura_variobreeze_rs485_valid_frames') | int(0) }}
             icon: mdi:hvac
             icon_color: >
@@ -34,7 +34,7 @@ views:
               {% if v / t > 0.95 %}green{% elif v / t > 0.7 %}orange{% else %}red{% endif %}
 
           - type: custom:mushroom-template-card
-            primary: Ventiliatorius
+            primary: Fan
             secondary: >
               L{{ (states('sensor.futura_variobreeze_fan_airflow_step') | int(64)) // 64 }}
               · T:{{ states('sensor.futura_variobreeze_supply_fan_setpoint') | int(0) }} m³/h
@@ -152,13 +152,13 @@ views:
   # ===========================================================================
   # 2. Dampers
   # ===========================================================================
-  - title: Sklendės
-    path: sklendes
+  - title: Dampers
+    path: dampers
     icon: mdi:valve
     cards:
 
       - type: glance
-        title: "Boost (0=laukia · 1=aktyvuotas)"
+        title: "Boost (0=idle · 1=active)"
         show_name: true
         columns: 3
         entities:
@@ -216,7 +216,7 @@ views:
         content: >
           ### Exhaust dampers · Trend: 🟢 opening · 🔴 closing
 
-          Boost: aktyvuota zona 100%, kitos 0%.
+          Boost: active zone 100%, others 0%.
           **Kitchen: 96+104 · WC: 97+105 · Bathroom: 98+106 · Bedroom: 99 · Tech: 100 · Hallway: 101 (DIP)**
 
       - type: custom:bar-card
@@ -259,7 +259,7 @@ views:
         content: "### Status (reg107) · 0=starting · 1=stable · 4=moving(boost)"
 
       - type: entities
-        title: Tiekimas statusai
+        title: Supply statuses
         entities:
           - entity: sensor.futura_variobreeze_supply_64_status
             name: "64 – Living room A"
@@ -281,7 +281,7 @@ views:
             name: "80 – Living room C"
 
       - type: entities
-        title: Ištraukimas statusai
+        title: Exhaust statuses
         entities:
           - entity: sensor.futura_variobreeze_exhaust_96_status
             name: "96 – Kitchen A"
@@ -305,24 +305,24 @@ views:
   # ===========================================================================
   # 3. System
   # ===========================================================================
-  - title: Sistema
-    path: sistema
+  - title: System
+    path: system
     icon: mdi:gauge
     cards:
 
       - type: markdown
         content: >
-          ### Ventiliatoriaus sistema
+          ### Fan system
 
-          **reg49** = srautas lygis: 64=L1(min) · 128=L2 · 192=L3 · 256=L4 · 320=L5(boost)
+          **reg49** = airflow level: 64=L1(min) · 128=L2 · 192=L3 · 256=L4 · 320=L5(boost)
 
-          **reg198/199** = absoliutus srautas (m³/h), NE %: gali viršyti 100
+          **reg198/199** = absolute airflow (m³/h), NOT %: can exceed 100
 
       - type: horizontal-stack
         cards:
           - type: gauge
             entity: sensor.futura_variobreeze_fan_airflow_step
-            name: "Srautas (reg49)"
+            name: "Airflow (reg49)"
             min: 0
             max: 320
             needle: true
@@ -332,7 +332,7 @@ views:
               red: 256
           - type: gauge
             entity: sensor.futura_variobreeze_supply_fan_setpoint
-            name: "Tiekimas m³/h"
+            name: "Supply m³/h"
             min: 0
             max: 150
             needle: true
@@ -342,7 +342,7 @@ views:
               red: 110
           - type: gauge
             entity: sensor.futura_variobreeze_exhaust_fan_setpoint
-            name: "Ištraukimas m³/h"
+            name: "Exhaust m³/h"
             min: 0
             max: 150
             needle: true
@@ -385,8 +385,8 @@ views:
   # ===========================================================================
   # 4. Diagnostics
   # ===========================================================================
-  - title: Diagnostika
-    path: diagnostika
+  - title: Diagnostics
+    path: diagnostics
     icon: mdi:magnify
     cards:
 

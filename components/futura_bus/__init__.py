@@ -19,9 +19,6 @@ CONF_SLAVE_ID            = "slave_id"
 CONF_REG_ADDR            = "reg_addr"
 CONF_LABEL               = "label"
 CONF_ROOM                = "room"
-CONF_ZONE                = "zone"
-CONF_DAMPER_TYPE         = "damper_type"
-CONF_DAMPER_INDEX        = "damper_index"
 CONF_FRAME_GAP_MS        = "frame_gap_ms"
 CONF_DISCOVERY_MODE      = "discovery_mode"
 CONF_SUMMARY_INTERVAL_S  = "summary_interval_s"
@@ -44,9 +41,6 @@ DAMPER_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SLAVE_ID):    cv.int_range(min=1, max=247),
         cv.Required(CONF_ROOM):        cv.string,
-        cv.Required(CONF_ZONE):        cv.int_range(min=1, max=20),
-        cv.Required(CONF_DAMPER_TYPE): cv.one_of("privod", "odtah", lower=True),
-        cv.Optional(CONF_DAMPER_INDEX, default=1): cv.positive_int,
     }
 )
 
@@ -154,7 +148,6 @@ async def to_code(config):
     for dc in config.get(CONF_DAMPERS, []):
         cg.add(var.add_damper_config(
             dc[CONF_SLAVE_ID], dc[CONF_ROOM],
-            dc[CONF_ZONE], dc[CONF_DAMPER_TYPE], dc[CONF_DAMPER_INDEX],
         ))
 
     # Zone device configs

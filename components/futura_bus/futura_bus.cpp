@@ -97,20 +97,77 @@ void FuturaBusComponent::hex_dump(const char *prefix, const uint8_t *data,
 // Registration
 // ─────────────────────────────────────────────────────────────────────────────
 void FuturaBusComponent::add_damper_config(uint8_t slave_id,
-                                           const std::string &room,
-                                           uint8_t zone,
-                                           const std::string &type,
-                                           uint8_t damper_index) {
-  DamperConfig cfg{slave_id, room, zone, type, damper_index};
+                                           const std::string &room) {
+  DamperConfig cfg{slave_id, room};
   DamperState  st;
   st.config = cfg;
   dampers_[slave_id] = st;
 }
+
+DamperState &FuturaBusComponent::ensure_damper(uint8_t slave_id) {
+  if (!dampers_.count(slave_id)) {
+    DamperConfig cfg{slave_id, ""};
+    char name[32];
+    if (cfg.index() > 1)
+      snprintf(name, sizeof(name), "%s Z%d-I%d", cfg.type_str(), cfg.zone(), cfg.index());
+    else
+      snprintf(name, sizeof(name), "%s Z%d", cfg.type_str(), cfg.zone());
+    cfg.room = name;
+    DamperState st;
+    st.config = cfg;
+    dampers_[slave_id] = st;
+    ESP_LOGW(TAG, ">>> AUTO-DISCOVERED damper s=%d → %s (add to YAML for HA sensors)", slave_id, name);
+    update_discovery_text_();
+  }
+  return dampers_[slave_id];
+}
+
+ZoneDeviceState &FuturaBusComponent::ensure_zone_device(uint8_t slave_id) {
+  if (!zone_devices_.count(slave_id)) {
+    ZoneDeviceState st;
+    st.slave_id = slave_id;
+    char name[32];
+    if (slave_id == 16)
+      snprintf(name, sizeof(name), "ALFA panel");
+    else
+      snprintf(name, sizeof(name), "Zone %d", slave_id - 8);
+    st.room = name;
+    zone_devices_[slave_id] = st;
+    ESP_LOGW(TAG, ">>> AUTO-DISCOVERED zone device s=%d → %s (add to YAML for HA sensors)", slave_id, name);
+    update_discovery_text_();
+  }
+  return zone_devices_[slave_id];
+}
 void FuturaBusComponent::register_position_sensor(uint8_t slave_id, sensor::Sensor *s) {
-  if (dampers_.count(slave_id)) dampers_[slave_id].position_sensor = s;
+  // Pre-create damper entry without auto-creating sensors
+  if (!dampers_.count(slave_id)) {
+    DamperConfig cfg{slave_id, ""};
+    char name[32];
+    if (cfg.index() > 1)
+      snprintf(name, sizeof(name), "%s Z%d-I%d", cfg.type_str(), cfg.zone(), cfg.index());
+    else
+      snprintf(name, sizeof(name), "%s Z%d", cfg.type_str(), cfg.zone());
+    cfg.room = name;
+    DamperState st;
+    st.config = cfg;
+    dampers_[slave_id] = st;
+  }
+  dampers_[slave_id].position_sensor = s;
 }
 void FuturaBusComponent::register_status_sensor(uint8_t slave_id, sensor::Sensor *s) {
-  if (dampers_.count(slave_id)) dampers_[slave_id].status_sensor = s;
+  if (!dampers_.count(slave_id)) {
+    DamperConfig cfg{slave_id, ""};
+    char name[32];
+    if (cfg.index() > 1)
+      snprintf(name, sizeof(name), "%s Z%d-I%d", cfg.type_str(), cfg.zone(), cfg.index());
+    else
+      snprintf(name, sizeof(name), "%s Z%d", cfg.type_str(), cfg.zone());
+    cfg.room = name;
+    DamperState st;
+    st.config = cfg;
+    dampers_[slave_id] = st;
+  }
+  dampers_[slave_id].status_sensor = s;
 }
 void FuturaBusComponent::add_zone_device(uint8_t slave_id, const std::string &room) {
   ZoneDeviceState st;
@@ -119,13 +176,31 @@ void FuturaBusComponent::add_zone_device(uint8_t slave_id, const std::string &ro
   zone_devices_[slave_id] = st;
 }
 void FuturaBusComponent::register_zone_temp(uint8_t slave_id, sensor::Sensor *s) {
-  if (zone_devices_.count(slave_id)) zone_devices_[slave_id].temp_sensor = s;
+  if (!zone_devices_.count(slave_id)) {
+    ZoneDeviceState st;
+    st.slave_id = slave_id;
+    st.room = (slave_id == 16) ? "ALFA panel" : "Zone " + std::to_string(slave_id - 8);
+    zone_devices_[slave_id] = st;
+  }
+  zone_devices_[slave_id].temp_sensor = s;
 }
 void FuturaBusComponent::register_zone_humidity(uint8_t slave_id, sensor::Sensor *s) {
-  if (zone_devices_.count(slave_id)) zone_devices_[slave_id].humidity_sensor = s;
+  if (!zone_devices_.count(slave_id)) {
+    ZoneDeviceState st;
+    st.slave_id = slave_id;
+    st.room = (slave_id == 16) ? "ALFA panel" : "Zone " + std::to_string(slave_id - 8);
+    zone_devices_[slave_id] = st;
+  }
+  zone_devices_[slave_id].humidity_sensor = s;
 }
 void FuturaBusComponent::register_zone_co2(uint8_t slave_id, sensor::Sensor *s) {
-  if (zone_devices_.count(slave_id)) zone_devices_[slave_id].co2_sensor = s;
+  if (!zone_devices_.count(slave_id)) {
+    ZoneDeviceState st;
+    st.slave_id = slave_id;
+    st.room = (slave_id == 16) ? "ALFA panel" : "Zone " + std::to_string(slave_id - 8);
+    zone_devices_[slave_id] = st;
+  }
+  zone_devices_[slave_id].co2_sensor = s;
 }
 void FuturaBusComponent::add_pressure_sensor(uint8_t slave_id, uint16_t reg_addr,
                                               const std::string &label,
@@ -143,7 +218,7 @@ void FuturaBusComponent::add_pressure_sensor(uint8_t slave_id, uint16_t reg_addr
 // setup / dump_config
 // ─────────────────────────────────────────────────────────────────────────────
 void FuturaBusComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Futura Bus v11 starting");
+  ESP_LOGCONFIG(TAG, "Futura Bus v11.4 starting");
   ESP_LOGCONFIG(TAG, "  Dampers      : %d", (int)dampers_.size());
   ESP_LOGCONFIG(TAG, "  Zone devices : %d", (int)zone_devices_.size());
   ESP_LOGCONFIG(TAG, "  Pressure/evt : %d", (int)pressure_sensors_.size());
@@ -155,12 +230,12 @@ void FuturaBusComponent::setup() {
 }
 
 void FuturaBusComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Futura Bus RS485 sniffer v11:");
+  ESP_LOGCONFIG(TAG, "Futura Bus RS485 sniffer v11.4:");
   for (auto &kv : dampers_) {
     auto &d = kv.second;
     ESP_LOGCONFIG(TAG, "  Damper s=%d zone=%d %s %s",
-                  d.config.slave_id, d.config.zone,
-                  d.config.type.c_str(), d.config.room.c_str());
+                  d.config.slave_id, d.config.zone(),
+                  d.config.type_str(), d.config.room.c_str());
   }
   for (auto &kv : zone_devices_)
     ESP_LOGCONFIG(TAG, "  Zone   s=%d %s", kv.second.slave_id, kv.second.room.c_str());
@@ -393,8 +468,8 @@ void FuturaBusComponent::on_write_single(uint8_t slave_id,
   ESP_LOGI(TAG, "FC6 WRITE s=%d r=%d v=%d [%s]",
            slave_id, reg, value, classify_slave(slave_id));
 
-  if (reg == 102 && dampers_.count(slave_id)) {
-    auto &d = dampers_[slave_id];
+  if (reg == 102 && slave_id >= 64 && slave_id <= 127) {
+    auto &d = ensure_damper(slave_id);
     int nv  = (int)value;
     if (d.target_position == -1 || d.target_position != nv) {
       ESP_LOGI(TAG, ">>> DAMPER %d (%s) pos=%d%% (FC6, was %d)",
@@ -482,8 +557,8 @@ void FuturaBusComponent::on_write_multiple(uint8_t slave_id,
       system_.last_r256 = (int)value;
     }
 
-    if (addr == 102 && dampers_.count(slave_id)) {
-      auto &d = dampers_[slave_id];
+    if (addr == 102 && slave_id >= 64 && slave_id <= 127) {
+      auto &d = ensure_damper(slave_id);
       int nv  = (int)value;
       if (d.target_position == -1 || d.target_position != nv) {
         ESP_LOGI(TAG, ">>> DAMPER %d (%s) pos=%d%% (FC16, was %d)",
@@ -525,40 +600,31 @@ void FuturaBusComponent::maybe_publish_pressure(uint8_t slave_id,
 // reg95: CO₂ ppm
 void FuturaBusComponent::decode_zone_sensor(uint8_t slave_id,
                                             uint16_t reg, uint16_t value) {
-  auto it  = zone_devices_.find(slave_id);
-  bool has = (it != zone_devices_.end());
+  auto &z = ensure_zone_device(slave_id);
   switch (reg) {
     case 91:
-      if (has) {
-        it->second.status           = (int)value;
-        it->second.has_boost_button = (value & 0x02) != 0;
-      }
+      z.status           = (int)value;
+      z.has_boost_button = (value & 0x02) != 0;
       break;
     case 92:
-      if (has) it->second.temp_out = value * 0.01f;
+      z.temp_out = value * 0.01f;
       break;
     case 93: {
       float t = value * 0.01f;
-      if (has) {
-        it->second.temp_room = t;
-        if (it->second.temp_sensor) it->second.temp_sensor->publish_state(t);
-      }
+      z.temp_room = t;
+      if (z.temp_sensor) z.temp_sensor->publish_state(t);
       break;
     }
     case 94: {
       float h = value * 0.01f;  // CONFIRMED
-      if (has) {
-        it->second.humidity = h;
-        if (it->second.humidity_sensor) it->second.humidity_sensor->publish_state(h);
-      }
+      z.humidity = h;
+      if (z.humidity_sensor) z.humidity_sensor->publish_state(h);
       break;
     }
     case 95: {
       float co2 = (float)value;
-      if (has) {
-        it->second.co2 = co2;
-        if (it->second.co2_sensor) it->second.co2_sensor->publish_state(co2);
-      }
+      z.co2 = co2;
+      if (z.co2_sensor) z.co2_sensor->publish_state(co2);
       break;
     }
     default:
@@ -570,8 +636,7 @@ void FuturaBusComponent::decode_zone_sensor(uint8_t slave_id,
 // ALFA main panel slave 16
 void FuturaBusComponent::decode_alfa_main(uint8_t slave_id,
                                           uint16_t reg, uint16_t value) {
-  auto it  = zone_devices_.find(slave_id);
-  bool has = (it != zone_devices_.end());
+  auto &zd = ensure_zone_device(slave_id);
 
   if (reg == 37) {
     system_.alfa_co2 = (float)value;
@@ -613,26 +678,20 @@ void FuturaBusComponent::decode_alfa_main(uint8_t slave_id,
   }
   if (reg == 68) {
     float t = value * 0.1f;
-    if (has) {
-      it->second.temp_room = t;
-      if (it->second.temp_sensor) it->second.temp_sensor->publish_state(t);
-    }
+    zd.temp_room = t;
+    if (zd.temp_sensor) zd.temp_sensor->publish_state(t);
     return;
   }
   if (reg == 69) {
     float h = (float)value;
-    if (has) {
-      it->second.humidity = h;
-      if (it->second.humidity_sensor) it->second.humidity_sensor->publish_state(h);
-    }
+    zd.humidity = h;
+    if (zd.humidity_sensor) zd.humidity_sensor->publish_state(h);
     return;
   }
   if (reg == 70) {
     float co2 = (float)value;
-    if (has) {
-      it->second.co2 = co2;
-      if (it->second.co2_sensor) it->second.co2_sensor->publish_state(co2);
-    }
+    zd.co2 = co2;
+    if (zd.co2_sensor) zd.co2_sensor->publish_state(co2);
     return;
   }
   if (reg == 181) { system_.mode_status    = (int)value; return; }
@@ -712,12 +771,7 @@ void FuturaBusComponent::decode_peripheral(uint8_t slave_id,
 //   0, 2 = TBD
 void FuturaBusComponent::decode_damper(uint8_t slave_id,
                                        uint16_t reg, uint16_t value) {
-  if (!dampers_.count(slave_id)) {
-    if (discovery_mode_)
-      ESP_LOGI(TAG, "DAMPER s=%d (not in config) r=%d v=%d", slave_id, reg, value);
-    return;
-  }
-  auto &d = dampers_[slave_id];
+  auto &d = ensure_damper(slave_id);
   d.last_seen_ms = millis();
 
   if (reg == 107) {
@@ -824,6 +878,28 @@ void FuturaBusComponent::publish_discovery_summary() {
   discovery_sensor_->publish_state(std::string(buf));
 }
 
+void FuturaBusComponent::update_discovery_text_() {
+  if (!discovery_sensor_) return;
+  std::string out;
+  for (auto &kv : dampers_) {
+    auto &d = kv.second;
+    char line[64];
+    snprintf(line, sizeof(line), "s%d %s%s\n",
+             d.config.slave_id, d.config.room.c_str(),
+             d.position_sensor ? "" : " [no YAML]");
+    out += line;
+  }
+  for (auto &kv : zone_devices_) {
+    auto &z = kv.second;
+    char line[64];
+    snprintf(line, sizeof(line), "s%d %s%s\n",
+             z.slave_id, z.room.c_str(),
+             z.temp_sensor ? "" : " [no YAML]");
+    out += line;
+  }
+  discovery_sensor_->publish_state(out);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Correlation snapshot — called when fan setpoint or airflow changes.
 // Logs every damper's current known position and status at that instant.
@@ -837,7 +913,7 @@ void FuturaBusComponent::log_damper_correlation(const char *trigger, int trigger
   // Log all supply dampers
   for (auto &kv : dampers_) {
     auto &d = kv.second;
-    if (d.config.type != "privod") continue;
+    if (!d.config.is_supply()) continue;
     if (d.target_position >= 0)
       ESP_LOGI(TAG, "  SUPPLY s=%d %-20s pos=%d%% status=%d",
                d.config.slave_id, d.config.room.c_str(),
@@ -850,7 +926,7 @@ void FuturaBusComponent::log_damper_correlation(const char *trigger, int trigger
   // Log all exhaust dampers
   for (auto &kv : dampers_) {
     auto &d = kv.second;
-    if (d.config.type != "odtah") continue;
+    if (!d.config.is_exhaust()) continue;
     if (d.target_position >= 0)
       ESP_LOGI(TAG, "  EXHAUST s=%d %-20s pos=%d%% status=%d",
                d.config.slave_id, d.config.room.c_str(),

@@ -40,9 +40,21 @@ struct RegSnapshot {
 struct DamperConfig {
   uint8_t     slave_id;
   std::string room;
-  uint8_t     zone;
-  std::string type;        // "privod" | "odtah"
-  uint8_t     damper_index;
+
+  // Derived from slave_id per Jablotron DIP addressing scheme:
+  //   Supply:  64 + (index-1)*8 + (zone-1)  → slave 64-95
+  //   Exhaust: 96 + (index-1)*8 + (zone-1)  → slave 96-127
+  bool is_supply()  const { return slave_id >= 64 && slave_id < 96; }
+  bool is_exhaust() const { return slave_id >= 96 && slave_id < 128; }
+  uint8_t zone()    const {
+    uint8_t base = is_exhaust() ? 96 : 64;
+    return ((slave_id - base) % 8) + 1;
+  }
+  uint8_t index()   const {
+    uint8_t base = is_exhaust() ? 96 : 64;
+    return ((slave_id - base) / 8) + 1;
+  }
+  const char *type_str() const { return is_exhaust() ? "EXHAUST" : "SUPPLY"; }
 };
 
 struct DamperState {
@@ -146,9 +158,9 @@ class FuturaBusComponent : public Component, public uart::UARTDevice {
   void set_summary_interval_s(uint32_t s) { summary_interval_ms_ = s * 1000UL; }
 
   // Damper registration
-  void add_damper_config(uint8_t slave_id, const std::string &room,
-                         uint8_t zone, const std::string &type,
-                         uint8_t damper_index);
+  void add_damper_config(uint8_t slave_id, const std::string &room);
+  DamperState &ensure_damper(uint8_t slave_id);
+  ZoneDeviceState &ensure_zone_device(uint8_t slave_id);
   void register_position_sensor(uint8_t slave_id, sensor::Sensor *s);
   void register_status_sensor(uint8_t slave_id, sensor::Sensor *s);
 
@@ -210,6 +222,7 @@ class FuturaBusComponent : public Component, public uart::UARTDevice {
   void snapshot_reg(uint8_t slave_id, uint16_t reg, uint16_t value);
   void log_discovery_summary();
   void publish_discovery_summary();
+  void update_discovery_text_();
 
   static const KnownReg *lookup_known_reg(uint8_t slave_id, uint16_t reg);
   static const char     *classify_slave(uint8_t slave_id);

@@ -241,57 +241,30 @@ futura_bus:
   dampers:
     - slave_id: 64
       room: "Supply living room A"
-      zone: 1
-      damper_type: privod
-      damper_index: 1
 
     - slave_id: 65
       room: "Supply room2"
-      zone: 2
-      damper_type: privod
-      damper_index: 1
 
     - slave_id: 66
       room: "Supply room3"
-      zone: 3
-      damper_type: privod
-      damper_index: 1
 
     - slave_id: 67
       room: "Supply room4"
-      zone: 4
-      damper_type: privod
-      damper_index: 1
 
     - slave_id: 68
       room: "Supply room1 B"
-      zone: 5
-      damper_type: privod
-      damper_index: 2
 
     - slave_id: 69
       room: "Supply office"
-      zone: 6
-      damper_type: privod
-      damper_index: 1
 
     - slave_id: 72
       room: "Supply living room B"
-      zone: 1
-      damper_type: privod
-      damper_index: 2
 
     - slave_id: 73
       room: "Supply room1 A"
-      zone: 5
-      damper_type: privod
-      damper_index: 1
 
     - slave_id: 80
       room: "Supply living room C"
-      zone: 1
-      damper_type: privod
-      damper_index: 3
 
     # ── Exhaust dampers (odtah) ────────────────────────────────────────────────
     # Confirmed via boost test (zone that STAYS at 100% = boost zone):
@@ -300,57 +273,30 @@ futura_bus:
     #   bathroom boost → 98+106 stay open
     - slave_id: 96
       room: "Exhaust kitchen A"
-      zone: 7
-      damper_type: odtah
-      damper_index: 1
 
     - slave_id: 97
       room: "Exhaust WC A"
-      zone: 8
-      damper_type: odtah
-      damper_index: 1
 
     - slave_id: 98
       room: "Exhaust bathroom A"
-      zone: 9
-      damper_type: odtah
-      damper_index: 1
 
     - slave_id: 99
       room: "Exhaust bedroom"
-      zone: 10
-      damper_type: odtah
-      damper_index: 1
 
     - slave_id: 100
       room: "Exhaust tech room"
-      zone: 11
-      damper_type: odtah
-      damper_index: 1
 
     - slave_id: 101
       room: "Exhaust hallway"
-      zone: 12
-      damper_type: odtah
-      damper_index: 1
 
     - slave_id: 104
       room: "Exhaust kitchen B"
-      zone: 7
-      damper_type: odtah
-      damper_index: 2
 
     - slave_id: 105
       room: "Exhaust WC B"
-      zone: 8
-      damper_type: odtah
-      damper_index: 2
 
     - slave_id: 106
       room: "Exhaust bathroom B"
-      zone: 9
-      damper_type: odtah
-      damper_index: 2
 
 # =============================================================================
 # Sensors
